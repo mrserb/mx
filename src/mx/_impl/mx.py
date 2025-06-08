@@ -13785,6 +13785,7 @@ def _build_with_report(cmd_args, build_report, parser=None):
     parser.add_argument('--print-timing', action='store_true', help='print start/end times and duration for each build task', default=is_continuous_integration())
     parser.add_argument('--gmake', action='store', help='path to the \'make\' executable that should be used', metavar='<path>', default=None)
     parser.add_argument('--graph-file', action='store', help='path where a DOT graph of the build plan should be stored.\nIf the extension is ps, pdf, svg, png, git, or jpg, it will be rendered.', metavar='<path>', default=None)
+    parser.add_argument('--check-rebuild', action='store_true', help='check that re-build is not necessary after building')
     parser.add_argument('--dry-run', action='store_true', help='only print the build plan but don\'t build anything')
     parser.add_argument('--download-only', action='store_true', help='only download all build dependencies into the mx cache but do not build anything')
 
@@ -13820,6 +13821,9 @@ def _build_with_report(cmd_args, build_report, parser=None):
         parser.add_argument('remainder', nargs=REMAINDER, metavar='...')
 
     args = parser.parse_args(cmd_args[:])
+
+    if args.force and args.check_rebuild:
+        abort("-f and --check-rebuild cannot be used together")
 
     env_gc_after_build_varname = 'MX_GC_AFTER_BUILD'
     env_gc_after_build = get_env(env_gc_after_build_varname) if 'com.oracle.mxtool.compilerserver' not in cmd_args else None

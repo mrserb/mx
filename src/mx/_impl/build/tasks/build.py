@@ -142,6 +142,17 @@ class BuildTask(Buildable, Task):
             self._persist_config()
             # The build task is `built` if the `build()` function returns True or None (legacy)
             self.built = _built or _built is None
+            if self.built and self.args.check_rebuild and self.supportsRebuildCheck():
+                rebuild_needed, rebuild_reason = self.needsBuild(self._get_newest_input())
+                if rebuild_needed:
+                    log(f"{self} needs a rebuild after being built ({rebuild_reason}); checking again with verbose output.")
+                    previous_verbose = _opts.verbose
+                    _opts.verbose = True
+                    try:
+                        self.needsBuild(self._get_newest_input())
+                    finally:
+                        _opts.verbose = previous_verbose
+                    return abort(f"{self} still needs build just after being built: {rebuild_reason}")
             self.logBuildDone(time.time() - start_time)
             logv(f'Finished {self}')
         else:
@@ -154,6 +165,14 @@ class BuildTask(Buildable, Task):
 
     def canSkipPrepare(self) -> bool:
         return False
+
+    def supportsRebuildCheck(self) -> bool:
+        """
+        Returns whether :meth:`needsBuild` can verify that this task is up to date immediately after a build.
+
+        Tasks that can't implement incremental build should override this method.
+        """
+        return True
 
     def _computeBuildState(self) -> Tuple[bool, str | None]:
         if self.buildForbidden():
@@ -175,29 +194,33 @@ class BuildTask(Buildable, Task):
             buildNeeded = True
             reason = 'config was changed'
         if not buildNeeded:
-            newestInput = None
-            newestInputDep = None
-            for dep in self.deps:
-                depNewestOutput = getattr(dep, 'newestOutput', lambda: None)()
-                if depNewestOutput and (not newestInput or depNewestOutput.isNewerThan(newestInput)):
-                    newestInput = depNewestOutput
-                    newestInputDep = dep
-            if newestInputDep:
-                logvv(f'Newest dependency for {self.subject.name}: {newestInputDep.subject.name} ({newestInput})')
-
-            if get_env('MX_BUILD_SHALLOW_DEPENDENCY_CHECKS') is None:
-                shallow_dependency_checks = self.args.shallow_dependency_checks is True
-            else:
-                shallow_dependency_checks = get_env('MX_BUILD_SHALLOW_DEPENDENCY_CHECKS') == 'true'
-                if self.args.shallow_dependency_checks is not None and shallow_dependency_checks is True:
-                    warn('Explicit -s argument to build command is overridden by MX_BUILD_SHALLOW_DEPENDENCY_CHECKS')
-
-            if newestInput and shallow_dependency_checks and not self.subject.isNativeProject():
-                newestInput = None
-            if __name__ != self.__module__ and not self.subject.suite.getMxCompatibility().newestInputIsTimeStampFile():
-                newestInput = newestInput.timestamp if newestInput else float(0)
+            newestInput = self._get_newest_input()
             buildNeeded, reason = self.needsBuild(newestInput)
         return buildNeeded, reason
+
+    def _get_newest_input(self) -> None | float | TimeStampFile:
+        newestInput = None
+        newestInputDep = None
+        for dep in self.deps:
+            depNewestOutput = getattr(dep, 'newestOutput', lambda: None)()
+            if depNewestOutput and (not newestInput or depNewestOutput.isNewerThan(newestInput)):
+                newestInput = depNewestOutput
+                newestInputDep = dep
+        if newestInputDep:
+            logvv(f'Newest dependency for {self.subject.name}: {newestInputDep.subject.name} ({newestInput})')
+
+        if get_env('MX_BUILD_SHALLOW_DEPENDENCY_CHECKS') is None:
+            shallow_dependency_checks = self.args.shallow_dependency_checks is True
+        else:
+            shallow_dependency_checks = get_env('MX_BUILD_SHALLOW_DEPENDENCY_CHECKS') == 'true'
+            if self.args.shallow_dependency_checks is not None and shallow_dependency_checks is True:
+                warn('Explicit -s argument to build command is overridden by MX_BUILD_SHALLOW_DEPENDENCY_CHECKS')
+
+        if newestInput and shallow_dependency_checks and not self.subject.isNativeProject():
+            newestInput = None
+        if __name__ != self.__module__ and not self.subject.suite.getMxCompatibility().newestInputIsTimeStampFile():
+            newestInput = newestInput.timestamp if newestInput else float(0)
+        return newestInput
 
     def _timestamp(self) -> str:
         if self.args.print_timing:
