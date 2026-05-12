@@ -95,10 +95,13 @@ class Task(object, metaclass=ABCMeta):
         setLogTask(None)
 
     def abort(self, code):
+        self.mark_failed(code)
+        raise TaskAbortException(code)
+
+    def mark_failed(self, code=1):
         self._exitcode = code
         if self.status != "cancelled":
             self.status = "failed"
-        raise TaskAbortException(code)
 
     def log(self, msg, echo=False, log=True, important=True, replace=False):
         """

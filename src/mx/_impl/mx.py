@@ -14158,6 +14158,9 @@ def _build_with_report(cmd_args, build_report, parser=None):
                     task.execute()
                 except TaskAbortException:
                     pass
+                except Exception as e:
+                    task.mark_failed()
+                    raise e
                 finally:
                     task.leave()
                 task.pushSharedMemoryState()
