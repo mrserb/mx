@@ -4175,7 +4175,7 @@ def stat(name):
     return os.stat(_safe_path(name))
 
 
-def open(name, mode='r', encoding='utf-8'):  # pylint: disable=redefined-builtin
+def open(name, mode='r', encoding='utf-8', newline=None):  # pylint: disable=redefined-builtin
     """
     Wrapper for builtin open function that handles long path names on Windows.
     Also, it handles supplying a default value of 'utf-8' for the encoding
@@ -4183,9 +4183,9 @@ def open(name, mode='r', encoding='utf-8'):  # pylint: disable=redefined-builtin
     """
     if 'b' in mode:
         # When opening files in binary mode, no encoding can be specified.
-        return builtins.open(_safe_path(name), mode=mode)
+        return builtins.open(_safe_path(name), mode=mode, newline=newline)
     else:
-        return builtins.open(_safe_path(name), mode=mode, encoding=encoding)
+        return builtins.open(_safe_path(name), mode=mode, encoding=encoding, newline=newline)
 
 
 def copytree(src, dst, symlinks=False, ignore=None):
@@ -6193,7 +6193,8 @@ Common causes:
         saved_layout_file = self._persisted_layout_file()
         current_layout = LayoutDistribution._layout_to_stable_str(self.layout)
         ensure_dir_exists(dirname(saved_layout_file))
-        with open(saved_layout_file, 'w') as fp:
+        # newline='' means no translation takes place
+        with open(saved_layout_file, 'w', encoding='utf-8', newline='') as fp:
             fp.write(current_layout)
 
     def _persisted_layout_file(self):
@@ -6213,7 +6214,8 @@ Common causes:
         current_layout = LayoutDistribution._layout_to_stable_str(self.layout)
         saved_layout = ""
         if exists(saved_layout_file):
-            with open(saved_layout_file) as fp:
+            # newline='' means universal newlines mode is enabled, but line endings are returned to the caller untranslated.
+            with open(saved_layout_file, encoding='utf-8', newline='') as fp:
                 saved_layout = fp.read()
 
         if saved_layout == current_layout:
