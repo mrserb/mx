@@ -809,7 +809,7 @@ def _run_gate(cleanArgs, args, tasks):
 
     with Task('BuildWithJavac', tasks, tags=[Tags.build, Tags.fullbuild], legacyTitles=['BuildJavaWithJavac'], _common=True) as t:
         if t:
-            defaultBuildArgs = ['-p']
+            defaultBuildArgs = ['-p', '--check-rebuild']
             if not args.no_warning_as_error:
                 defaultBuildArgs += ['--warning-as-error']
             mx.command_function('build')(defaultBuildArgs + ['--force-javac'] + args.extra_build_args)

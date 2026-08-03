@@ -4175,7 +4175,7 @@ def stat(name):
     return os.stat(_safe_path(name))
 
 
-def open(name, mode='r', encoding='utf-8'):  # pylint: disable=redefined-builtin
+def open(name, mode='r', encoding='utf-8', newline=None):  # pylint: disable=redefined-builtin
     """
     Wrapper for builtin open function that handles long path names on Windows.
     Also, it handles supplying a default value of 'utf-8' for the encoding
@@ -4183,9 +4183,9 @@ def open(name, mode='r', encoding='utf-8'):  # pylint: disable=redefined-builtin
     """
     if 'b' in mode:
         # When opening files in binary mode, no encoding can be specified.
-        return builtins.open(_safe_path(name), mode=mode)
+        return builtins.open(_safe_path(name), mode=mode, newline=newline)
     else:
-        return builtins.open(_safe_path(name), mode=mode, encoding=encoding)
+        return builtins.open(_safe_path(name), mode=mode, encoding=encoding, newline=newline)
 
 
 def copytree(src, dst, symlinks=False, ignore=None):
@@ -6193,7 +6193,8 @@ Common causes:
         saved_layout_file = self._persisted_layout_file()
         current_layout = LayoutDistribution._layout_to_stable_str(self.layout)
         ensure_dir_exists(dirname(saved_layout_file))
-        with open(saved_layout_file, 'w') as fp:
+        # newline='' means no translation takes place
+        with open(saved_layout_file, 'w', encoding='utf-8', newline='') as fp:
             fp.write(current_layout)
 
     def _persisted_layout_file(self):
@@ -6213,7 +6214,8 @@ Common causes:
         current_layout = LayoutDistribution._layout_to_stable_str(self.layout)
         saved_layout = ""
         if exists(saved_layout_file):
-            with open(saved_layout_file) as fp:
+            # newline='' means universal newlines mode is enabled, but line endings are returned to the caller untranslated.
+            with open(saved_layout_file, encoding='utf-8', newline='') as fp:
                 saved_layout = fp.read()
 
         if saved_layout == current_layout:
@@ -13783,6 +13785,7 @@ def _build_with_report(cmd_args, build_report, parser=None):
     parser.add_argument('--print-timing', action='store_true', help='print start/end times and duration for each build task', default=is_continuous_integration())
     parser.add_argument('--gmake', action='store', help='path to the \'make\' executable that should be used', metavar='<path>', default=None)
     parser.add_argument('--graph-file', action='store', help='path where a DOT graph of the build plan should be stored.\nIf the extension is ps, pdf, svg, png, git, or jpg, it will be rendered.', metavar='<path>', default=None)
+    parser.add_argument('--check-rebuild', action='store_true', help='check that re-build is not necessary after building')
     parser.add_argument('--dry-run', action='store_true', help='only print the build plan but don\'t build anything')
     parser.add_argument('--download-only', action='store_true', help='only download all build dependencies into the mx cache but do not build anything')
 
@@ -13818,6 +13821,9 @@ def _build_with_report(cmd_args, build_report, parser=None):
         parser.add_argument('remainder', nargs=REMAINDER, metavar='...')
 
     args = parser.parse_args(cmd_args[:])
+
+    if args.force and args.check_rebuild:
+        abort("-f and --check-rebuild cannot be used together")
 
     env_gc_after_build_varname = 'MX_GC_AFTER_BUILD'
     env_gc_after_build = get_env(env_gc_after_build_varname) if 'com.oracle.mxtool.compilerserver' not in cmd_args else None
@@ -14152,6 +14158,9 @@ def _build_with_report(cmd_args, build_report, parser=None):
                     task.execute()
                 except TaskAbortException:
                     pass
+                except Exception as e:
+                    task.mark_failed()
+                    raise e
                 finally:
                     task.leave()
                 task.pushSharedMemoryState()
